@@ -1,0 +1,38 @@
+# Test Results
+test-results/
+*.jtl
+*.log
+
+# Environment files
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Node.js (if you add any)
+node_modules/
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp

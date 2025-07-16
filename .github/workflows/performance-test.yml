@@ -1,0 +1,88 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_duration:
+        description: 'Test duration in seconds'
+        required: false
+        default: '60'
+        type: string
+      thread_count:
+        description: 'Number of threads'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up JMeter
+      run: |
+        wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.5.tgz
+        tar -xzf apache-jmeter-5.5.tgz
+        sudo mv apache-jmeter-5.5 /opt/jmeter
+        sudo chmod +x /opt/jmeter/bin/jmeter
+        echo "/opt/jmeter/bin" >> $GITHUB_PATH
+    
+    - name: Create results directory
+      run: mkdir -p test-results
+    
+    - name: Run JMeter Performance Test
+      run: |
+        jmeter -n -t jmeter-performance-test/jmeter/login_lead_assignm.jmx \
+          -l test-results/results.jtl \
+          -e -o test-results/html-report \
+          -Jthreads=${{ github.event.inputs.thread_count || '10' }} \
+          -Jduration=${{ github.event.inputs.test_duration || '60' }}
+    
+    - name: Upload JTL Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: jmeter-results
+        path: test-results/results.jtl
+    
+    - name: Upload HTML Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-report
+        path: test-results/html-report/
+    
+    - name: Parse Results
+      run: |
+        if [ -f test-results/results.jtl ]; then
+          echo "## Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Summary" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract basic metrics
+          total_requests=$(tail -n +2 test-results/results.jtl | wc -l)
+          failed_requests=$(tail -n +2 test-results/results.jtl | awk -F',' '$8=="false"' | wc -l)
+          success_rate=$(echo "scale=2; (($total_requests - $failed_requests) / $total_requests) * 100" | bc -l)
+          
+          echo "- Total Requests: $total_requests" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed Requests: $failed_requests" >> $GITHUB_STEP_SUMMARY
+          echo "- Success Rate: $success_rate%" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculate average response time
+          avg_response_time=$(tail -n +2 test-results/results.jtl | awk -F',' '{sum+=$2; count++} END {print sum/count}')
+          echo "- Average Response Time: ${avg_response_time}ms" >> $GITHUB_STEP_SUMMARY
+          
+          # Fail if success rate is below threshold
+          if (( $(echo "$success_rate < 95" | bc -l) )); then
+            echo "❌ Performance test failed: Success rate ($success_rate%) is below 95%"
+            exit 1
+          else
+            echo "✅ Performance test passed: Success rate is $success_rate%"
+          fi
+        fi

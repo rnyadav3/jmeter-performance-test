@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  jmeter:
+    build: .
+    container_name: jmeter-performance-test
+    volumes:
+      - ./test-results:/results
+      - ./jmeter-performance-test/jmeter:/tests
+    environment:
+      - THREADS=${THREADS:-10}
+      - DURATION=${DURATION:-60}
+      - RAMP_UP=${RAMP_UP:-5}
+    command: >
+      jmeter -n 
+      -t /tests/login_lead_assignm.jmx 
+      -l /results/results.jtl 
+      -e -o /results/html-report
+      -Jthreads=${THREADS:-10}
+      -Jduration=${DURATION:-60}
+      -Jrampup=${RAMP_UP:-5}
