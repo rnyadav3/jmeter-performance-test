@@ -1,0 +1,45 @@
+version: 2.1
+
+jobs:
+  jmeter_test:
+    docker:
+      - image: justb4/jmeter:5.5
+    steps:
+      - checkout
+
+      - run:
+          name: Run JMeter Test
+          command: |
+            mkdir -p results
+            jmeter -n -t jmeter/login_test.jmx -l results/result.jtl
+
+      - run:
+          name: Generate HTML Report
+          command: |
+            jmeter -g results/result.jtl -o results/report
+
+      - run:
+          name: Check if Avg Response Time > 2000ms
+          command: |
+            avg_time=$(awk -F',' 'NR > 1 {sum += $2; count++} END {if (count > 0) print int(sum / count); else print 0}' results/result.jtl)
+            echo "Average Response Time: $avg_time ms"
+            if [ "$avg_time" -gt 2000 ]; then
+              echo " Average response time is too high!"
+              exit 1
+            else
+              echo " Response time is within threshold."
+            fi
+
+      - store_artifacts:
+          path: results
+          destination: jmeter_raw_output
+
+      - store_artifacts:
+          path: results/report
+          destination: jmeter_html_report
+
+workflows:
+  version: 2
+  run-jmeter:
+    jobs:
+      - jmeter_test
